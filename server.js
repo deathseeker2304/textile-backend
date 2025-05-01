@@ -61,16 +61,21 @@ app.get('/api/classes', async (req, res) => {
     }
     try {
         const result = await db.query(
-            'SELECT class_name FROM classes WHERE semester = $1 ORDER BY class_name', // Query classes table
+            'SELECT class_name FROM classes WHERE semester = $1 ORDER BY class_name',
             [parseInt(semester, 10)]
         );
-        res.status(200).json(result.rows.map(row => row.class_name));
+
+        // <<< --- ADD THIS LINE FOR DEBUGGING --- >>>
+        console.log(`GET /api/classes?semester=${semester} - DB Result Rows:`, JSON.stringify(result.rows));
+        // <<< --- END OF ADDED LINE --- >>>
+
+        res.status(200).json(result.rows.map(row => row.class_name)); // Send mapped results
+
     } catch (err) {
         console.error('Error fetching classes:', err);
         res.status(500).json({ error: 'Internal server error while fetching classes' });
     }
 });
-
 // GET /api/teachers - Fetch ALL distinct teachers from teachers table
 // Note: No longer filtering by semester/class here, adjust if needed
 app.get('/api/teachers', async (req, res) => {
