@@ -32,7 +32,6 @@ app.use(cors({
 
 app.use(express.json()); // Parse incoming JSON request bodies
 // --- END OF CORS CHANGE ---
-app.use(express.json()); // Parse incoming JSON request bodies
 
 // --- Helper Function for ID Validation ---
 const validateId = (req, res, next) => {
@@ -47,7 +46,71 @@ const validateId = (req, res, next) => {
 
 
 // --- API Routes ---
+// Add these inside the --- API Routes --- section of server.js
 
+// ====== Category Fetching API ======
+
+// GET /api/classes?semester=X - Fetch distinct classes for a semester
+app.get('/api/classes', async (req, res) => {
+    const { semester } = req.query;
+    if (!semester) {
+        return res.status(400).json({ error: 'Semester query parameter is required' });
+    }
+    try {
+        const result = await db.query(
+            'SELECT DISTINCT class_name FROM pdfs WHERE semester = $1 ORDER BY class_name',
+            [parseInt(semester, 10)]
+        );
+        // Return just an array of strings
+        res.status(200).json(result.rows.map(row => row.class_name));
+    } catch (err) {
+        console.error('Error fetching classes:', err);
+        res.status(500).json({ error: 'Internal server error while fetching classes' });
+    }
+});
+
+// GET /api/teachers?semester=X&class=Y - Fetch distinct teachers for a class/semester
+app.get('/api/teachers', async (req, res) => {
+    const { semester, class: className } = req.query;
+    if (!semester || !className) {
+        return res.status(400).json({ error: 'Semester and class query parameters are required' });
+    }
+    try {
+        const result = await db.query(
+            'SELECT DISTINCT teacher_name FROM pdfs WHERE semester = $1 AND class_name = $2 ORDER BY teacher_name',
+            [parseInt(semester, 10), className]
+        );
+        res.status(200).json(result.rows.map(row => row.teacher_name));
+    } catch (err) {
+        console.error('Error fetching teachers:', err);
+        res.status(500).json({ error: 'Internal server error while fetching teachers' });
+    }
+});
+
+// GET /api/chapters?semester=X&class=Y&teacher=Z - Fetch distinct chapters
+app.get('/api/chapters', async (req, res) => {
+    const { semester, class: className, teacher: teacherName } = req.query;
+     if (!semester || !className || !teacherName) {
+        return res.status(400).json({ error: 'Semester, class, and teacher query parameters are required' });
+    }
+    try {
+        const result = await db.query(
+            'SELECT DISTINCT chapter_name FROM pdfs WHERE semester = $1 AND class_name = $2 AND teacher_name = $3 ORDER BY chapter_name',
+            [parseInt(semester, 10), className, teacherName]
+        );
+         res.status(200).json(result.rows.map(row => row.chapter_name));
+    } catch (err) {
+        console.error('Error fetching chapters:', err);
+        res.status(500).json({ error: 'Internal server error while fetching chapters' });
+    }
+});
+
+// ====== End of Category Fetching API ======
+
+
+// ====== Existing PDFs API starts here ======
+// GET /api/pdfs - Fetch PDFs based on filters (Keep this as is)
+// ... rest of your existing PDF, Task, Video, etc. API endpoints ...
 // ====== Tasks API ======
 
 // GET /api/tasks - Fetch all tasks
