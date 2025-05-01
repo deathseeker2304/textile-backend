@@ -49,8 +49,11 @@ const validateId = (req, res, next) => {
 // Add these inside the --- API Routes --- section of server.js
 
 // ====== Category Fetching API ======
+// ====== Category Management API ======
 
-// GET /api/classes?semester=X - Fetch distinct classes for a semester
+// --- GET Endpoints (Query NEW Tables) ---
+
+// GET /api/classes?semester=X - Fetch classes for a semester from classes table
 app.get('/api/classes', async (req, res) => {
     const { semester } = req.query;
     if (!semester) {
@@ -58,10 +61,9 @@ app.get('/api/classes', async (req, res) => {
     }
     try {
         const result = await db.query(
-            'SELECT DISTINCT class_name FROM pdfs WHERE semester = $1 ORDER BY class_name',
+            'SELECT class_name FROM classes WHERE semester = $1 ORDER BY class_name', // Query classes table
             [parseInt(semester, 10)]
         );
-        // Return just an array of strings
         res.status(200).json(result.rows.map(row => row.class_name));
     } catch (err) {
         console.error('Error fetching classes:', err);
@@ -69,17 +71,11 @@ app.get('/api/classes', async (req, res) => {
     }
 });
 
-// GET /api/teachers?semester=X&class=Y - Fetch distinct teachers for a class/semester
+// GET /api/teachers - Fetch ALL distinct teachers from teachers table
+// Note: No longer filtering by semester/class here, adjust if needed
 app.get('/api/teachers', async (req, res) => {
-    const { semester, class: className } = req.query;
-    if (!semester || !className) {
-        return res.status(400).json({ error: 'Semester and class query parameters are required' });
-    }
     try {
-        const result = await db.query(
-            'SELECT DISTINCT teacher_name FROM pdfs WHERE semester = $1 AND class_name = $2 ORDER BY teacher_name',
-            [parseInt(semester, 10), className]
-        );
+        const result = await db.query('SELECT teacher_name FROM teachers ORDER BY teacher_name'); // Query teachers table
         res.status(200).json(result.rows.map(row => row.teacher_name));
     } catch (err) {
         console.error('Error fetching teachers:', err);
@@ -87,23 +83,101 @@ app.get('/api/teachers', async (req, res) => {
     }
 });
 
-// GET /api/chapters?semester=X&class=Y&teacher=Z - Fetch distinct chapters
+// GET /api/chapters - Fetch ALL distinct chapters from chapters table
+// Note: No longer filtering by sem/class/teacher here, adjust if needed
 app.get('/api/chapters', async (req, res) => {
-    const { semester, class: className, teacher: teacherName } = req.query;
-     if (!semester || !className || !teacherName) {
-        return res.status(400).json({ error: 'Semester, class, and teacher query parameters are required' });
-    }
-    try {
-        const result = await db.query(
-            'SELECT DISTINCT chapter_name FROM pdfs WHERE semester = $1 AND class_name = $2 AND teacher_name = $3 ORDER BY chapter_name',
-            [parseInt(semester, 10), className, teacherName]
-        );
+     try {
+        const result = await db.query('SELECT chapter_name FROM chapters ORDER BY chapter_name'); // Query chapters table
          res.status(200).json(result.rows.map(row => row.chapter_name));
     } catch (err) {
         console.error('Error fetching chapters:', err);
         res.status(500).json({ error: 'Internal server error while fetching chapters' });
     }
 });
+
+// --- POST Endpoints (Add to NEW Tables) ---
+
+// POST /api/classes - Add a new class
+app.post('/api/classes', async (req, res) => {
+    const { semester, className } = req.body;
+    if (!semester || !className || typeof className !== 'string' || className.trim() === '') {
+        return res.status(400).json({ error: 'Semester and non-empty className are required' });
+    }
+    const semesterNum = parseInt(semester, 10);
+     if (isNaN(semesterNum) || semesterNum < 1 || semesterNum > 8) {
+         return res.status(400).json({ error: 'Invalid semester number' });
+     }
+
+    try {
+        // Insert, ignore if duplicate for that semester (due to UNIQUE constraint)
+        const result = await db.query(
+            `INSERT INTO classes (semester, class_name) VALUES ($1, $2)
+             ON CONFLICT (semester, class_name) DO NOTHING
+             RETURNING *`, // Returns inserted row OR empty if conflict occurred
+            [semesterNum, className.trim()]
+        );
+        if (result.rows.length > 0) {
+             res.status(201).json(result.rows[0]); // Return newly created class
+        } else {
+             res.status(200).json({ message: 'Class already exists for this semester' }); // Or 409 Conflict? 200 might be simpler for frontend
+        }
+    } catch (err) {
+        console.error('Error adding class:', err);
+        res.status(500).json({ error: 'Internal server error while adding class' });
+    }
+});
+
+// POST /api/teachers - Add a new teacher
+app.post('/api/teachers', async (req, res) => {
+    const { teacherName } = req.body;
+    if (!teacherName || typeof teacherName !== 'string' || teacherName.trim() === '') {
+        return res.status(400).json({ error: 'Non-empty teacherName is required' });
+    }
+    try {
+        // Insert, ignore if duplicate name (due to UNIQUE constraint)
+        const result = await db.query(
+            `INSERT INTO teachers (teacher_name) VALUES ($1)
+             ON CONFLICT (teacher_name) DO NOTHING
+             RETURNING *`,
+            [teacherName.trim()]
+        );
+         if (result.rows.length > 0) {
+             res.status(201).json(result.rows[0]); // Return newly created teacher
+        } else {
+             res.status(200).json({ message: 'Teacher already exists' });
+        }
+    } catch (err) {
+        console.error('Error adding teacher:', err);
+        res.status(500).json({ error: 'Internal server error while adding teacher' });
+    }
+});
+
+// POST /api/chapters - Add a new chapter
+app.post('/api/chapters', async (req, res) => {
+    const { chapterName } = req.body;
+     if (!chapterName || typeof chapterName !== 'string' || chapterName.trim() === '') {
+        return res.status(400).json({ error: 'Non-empty chapterName is required' });
+    }
+     try {
+        // Insert, ignore if duplicate name (due to UNIQUE constraint)
+        const result = await db.query(
+            `INSERT INTO chapters (chapter_name) VALUES ($1)
+             ON CONFLICT (chapter_name) DO NOTHING
+             RETURNING *`,
+            [chapterName.trim()]
+        );
+         if (result.rows.length > 0) {
+             res.status(201).json(result.rows[0]); // Return newly created chapter
+        } else {
+             res.status(200).json({ message: 'Chapter already exists' });
+        }
+    } catch (err) {
+        console.error('Error adding chapter:', err);
+        res.status(500).json({ error: 'Internal server error while adding chapter' });
+    }
+});
+
+// ====== End of Category Management API ======
 
 // ====== End of Category Fetching API ======
 
