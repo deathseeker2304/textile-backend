@@ -62,51 +62,29 @@ app.get('/api/classes', async (req, res) => {
     }
 });
 
-// GET /api/teachers - Fetch distinct teachers based on semester and class
+// GET /api/teachers - Fetch all teachers for a semester and class (from teachers table)
 app.get('/api/teachers', async (req, res) => {
     const { semester, class: className } = req.query;
     if (!semester || !className) {
         return res.status(400).json({ error: 'Semester and class query parameters are required' });
     }
-    const semesterNum = parseInt(semester, 10);
-    if (isNaN(semesterNum)) {
-        return res.status(400).json({ error: 'Semester must be a valid number' });
-    }
     try {
         const result = await db.query(
-            `SELECT DISTINCT teacher_name 
-             FROM pdfs 
-             WHERE semester = $1 AND class_name = $2 
-             ORDER BY teacher_name`,
-            [semesterNum, className]
+            `SELECT teacher_name FROM teachers ORDER BY teacher_name`
         );
-        console.log(`GET /api/teachers?semester=${semester}&class=${className} - DB Result Rows:`, JSON.stringify(result.rows));
         res.status(200).json(result.rows.map(row => row.teacher_name));
     } catch (err) {
         console.error('Error fetching teachers:', err);
         res.status(500).json({ error: 'Internal server error while fetching teachers' });
     }
 });
-
-// GET /api/chapters - Fetch distinct chapters based on semester, class, and teacher
+// GET /api/chapters - Fetch all chapters (optionally filter by semester, class, teacher)
 app.get('/api/chapters', async (req, res) => {
-    const { semester, class: className, teacher: teacherName } = req.query;
-    if (!semester || !className || !teacherName) {
-        return res.status(400).json({ error: 'Semester, class, and teacher query parameters are required' });
-    }
-    const semesterNum = parseInt(semester, 10);
-    if (isNaN(semesterNum)) {
-        return res.status(400).json({ error: 'Semester must be a valid number' });
-    }
+    // You can add filtering logic if you later add columns for semester/class/teacher to chapters table
     try {
         const result = await db.query(
-            `SELECT DISTINCT chapter_name 
-             FROM pdfs 
-             WHERE semester = $1 AND class_name = $2 AND teacher_name = $3 
-             ORDER BY chapter_name`,
-            [semesterNum, className, teacherName]
+            `SELECT chapter_name FROM chapters ORDER BY chapter_name`
         );
-        console.log(`GET /api/chapters?semester=${semester}&class=${className}&teacher=${teacherName} - DB Result Rows:`, JSON.stringify(result.rows));
         res.status(200).json(result.rows.map(row => row.chapter_name));
     } catch (err) {
         console.error('Error fetching chapters:', err);
