@@ -9,7 +9,29 @@ const port = process.env.PORT || 3001; // Use environment variable or default
 // --- Middleware ---
 // WARNING: Allow all origins for development. Restrict in production!
 // Example: app.use(cors({ origin: 'YOUR_FRONTEND_DEPLOYED_URL' }));
-app.use(cors());
+// --- Middleware ---
+
+const allowedOrigins = [
+    // You can add your local testing URL here too if needed later
+    // e.g., 'http://127.0.0.1:5500' if using VS Code Live Server default
+    'https://textile-frontend.onrender.com' // <<< PASTE YOUR FRONTEND URL HERE!
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin OR if the origin is in our list
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+       callback(null, true);
+    } else {
+      console.warn(`CORS blocked for origin: ${origin}`); // Log blocked attempts
+      callback(new Error(`Origin ${origin} Not allowed by CORS`)); // More specific error
+    }
+  },
+  optionsSuccessStatus: 200
+}));
+
+app.use(express.json()); // Parse incoming JSON request bodies
+// --- END OF CORS CHANGE ---
 app.use(express.json()); // Parse incoming JSON request bodies
 
 // --- Helper Function for ID Validation ---
