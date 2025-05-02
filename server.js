@@ -80,16 +80,36 @@ app.get('/api/teachers', async (req, res) => {
 });
 // GET /api/chapters - Fetch all chapters (optionally filter by semester, class, teacher)
 app.get('/api/chapters', async (req, res) => {
-    // You can add filtering logic if you later add columns for semester/class/teacher to chapters table
-    try {
-        const result = await db.query(
-            `SELECT chapter_name FROM chapters ORDER BY chapter_name`
-        );
-        res.status(200).json(result.rows.map(row => row.chapter_name));
-    } catch (err) {
-        console.error('Error fetching chapters:', err);
-        res.status(500).json({ error: 'Internal server error while fetching chapters' });
+    const { semester, class: className, teacher: teacherName } = req.query;
+    let query = 'SELECT chapter_name FROM chapters';
+    const conditions = [];
+    const values = [];
+    let idx = 1;
+
+    if (semester) {
+        conditions.push(`semester = $${idx++}`);
+        values.push(parseInt(semester, 10));
     }
+    if (className) {
+        conditions.push(`class_name = $${idx++}`);
+        values.push(className);
+    }
+    if (teacherName) {
+        conditions.push(`teacher_name = $${idx++}`);
+        values.push(teacherName);
+    }
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+}
+query += ' ORDER BY chapter_name';
+
+try {
+    const result = await db.query(query, values);
+    res.status(200).json(result.rows.map(row => row.chapter_name));
+} catch (err) {
+    console.error('Error fetching chapters:', err);
+    res.status(500).json({ error: 'Internal server error while fetching chapters' });
+}
 });
 
 // --- POST Endpoints (Add to NEW Tables) ---
@@ -148,21 +168,22 @@ app.post('/api/teachers', async (req, res) => {
 
 // POST /api/chapters - Add a new chapter
 app.post('/api/chapters', async (req, res) => {
-    const { chapterName } = req.body;
-    if (!chapterName || typeof chapterName !== 'string' || chapterName.trim() === '') {
-        return res.status(400).json({ error: 'Non-empty chapterName is required' });
+    const { chapterName, semester, className, teacherName } = req.body;
+    if (!chapterName || !semester || !className || !teacherName) {
+        return res.status(400).json({ error: 'chapterName, semester, className, and teacherName are required' });
     }
     try {
         const result = await db.query(
-            `INSERT INTO chapters (chapter_name) VALUES ($1)
-             ON CONFLICT (chapter_name) DO NOTHING
+            `INSERT INTO chapters (chapter_name, semester, class_name, teacher_name)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (chapter_name, semester, class_name, teacher_name) DO NOTHING
              RETURNING *`,
-            [chapterName.trim()]
+            [chapterName.trim(), parseInt(semester, 10), className.trim(), teacherName.trim()]
         );
         if (result.rows.length > 0) {
             res.status(201).json({ message: `Chapter "${chapterName}" added` });
         } else {
-            res.status(409).json({ message: `Chapter "${chapterName}" already exists` });
+            res.status(409).json({ message: `Chapter "${chapterName}" already exists for this class/semester/teacher` });
         }
     } catch (err) {
         console.error('Error adding chapter:', err);
