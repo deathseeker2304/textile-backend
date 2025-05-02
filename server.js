@@ -207,8 +207,7 @@ app.get('/api/pdfs', async (req, res) => {
     if (chapterName) { conditions.push(`chapter_name = $${paramIndex++}`); values.push(chapterName); }
 
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
-    query += ' ORDER BY uploaded_at DESC';
-
+query += ' ORDER BY updated_at DESC'; // <-- Use updated_at instead of uploaded_at
     try {
         const result = await db.query(query, values);
         console.log(`GET /api/pdfs - DB Result Rows:`, JSON.stringify(result.rows));
